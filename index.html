@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Are They Artists? (color) edition</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            color: #333;
+        }
+        h1 {
+            color: #c0392b; /* Red color for the title */
+        }
+        button {
+            padding: 10px 20px;
+            margin: 10px 0;
+            border: none;
+            background-color: #c0392b; /* Red color for buttons */
+            color: white;
+            cursor: pointer;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+        button:hover {
+            background-color: #a93226; /* Darker red on hover */
+        }
+        #status {
+            font-size: 24px;
+            margin: 20px;
+            color: #7f8c8d; /* Grey color for status text */
+        }
+        .container {
+            background-color: #ecf0f1; /* Light grey background for the container */
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+        }
+        input[type="color"] {
+            margin: 10px 0;
+        }
+        .counter {
+            font-size: 30pt;
+            margin: 10px 0;
+        }
+        #artistList {
+            margin-top: 20px;
+            padding: 10px;
+            background-color: #fff;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        #signedBy {
+            margin-top: 20px;
+            padding: 10px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 id="dynamicTitleColor">Are They Artists? (<span id="colorText">color</span>) edition</h1>
+        <div id="status">Loading...</div>
+        
+        <div class="counter" id="fontChangeCounter">Font changed this many times: 0</div>
+        <div class="counter" id="artChangeCounter">Art status changed this many times: 0</div>
+        
+        <div id="artistList">Artists who changed the font color:</div>
+        
+        <button id="connectButton">Connect MetaMask</button>
+        <button id="setArtButton" style="display:none;">Set as Art</button>
+        <button id="setNotArtButton" style="display:none;">Set as Not Art</button>
+        <button id="areTheyCorrectButton" style="display:none;">Are they correct?</button>
+        
+        <input type="color" id="colorPicker" value="#333333" style="display:none;">
+        <button id="changeColorButton">Change Font Color</button>
+
+        <div id="signedBy">
+            <input type="text" id="nameInput" placeholder="Type your name here..." />
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/6.7.0/ethers.umd.min.js"></script>
+    <script>
+        const contractAddress = '0xe9b74c90131feb2351A46daF4b3D1c13DD5169Ed';
+        const contractABI = [
+            {
+                "inputs": [],
+                "name": "setArt",
+                "outputs": [],
+                "stateMutability": "nonpayable",
+                "type": "function"
+            },
+            {
+                "inputs": [],
+                "name": "setNotArt",
+                "outputs": [],
+                "stateMutability": "nonpayable",
+                "type": "function"
+            },
+            {
+                "inputs": [],
+                "stateMutability": "nonpayable",
+                "type": "constructor"
+            },
+            {
+                "inputs": [],
+                "name": "isArt",
+                "outputs": [
+                    {
+                        "internalType": "bool",
+                        "name": "",
+                        "type": "bool"
+                    }
+                ],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            {
+                "inputs": [],
+                "name": "recordFontChange",
+                "outputs": [],
+                "stateMutability": "nonpayable",
+                "type": "function"
+            },
+            {
+                "inputs": [],
+                "name": "getFontChangeCount",
+                "outputs": [
+                    {
+                        "internalType": "uint256",
+                        "name": "",
+                        "type": "uint256"
+                    }
+                ],
+                "stateMutability": "view",
+                "type": "function"
+            },
+            {
+                "inputs": [],
+                "name": "getFontChangeRecords",
+                "outputs": [
+                    {
+                        "internalType": "tuple[]",
+                        "name": "",
+                        "type": "tuple",
+                        "components": [
+                            {
+                                "internalType": "address",
+                                "name": "user",
+                                "type": "address"
+                            },
+                            {
+                                "internalType": "uint256",
+                                "name": "timestamp",
+                                "type": "uint256"
+                            }
+                        ]
+                    }
+                ],
+                "stateMutability": "view",
+                "type": "function"
+            }
+        ];
+
+        let provider;
+        let signer;
+        let contract;
+        let fontChangeCount = 0;
+        let artChangeCount = 0;
+        let artistList = [];
+
+        document.getElementById('connectButton').onclick = async () => {
+            if (typeof window.ethereum === 'undefined') {
+                alert('MetaMask is not installed!');
+                return;
+            }
+            provider = new ethers.BrowserProvider(window.ethereum);
+            await provider.send("eth_requestAccounts", []);
+            signer = await provider.getSigner();
+            contract = new ethers.Contract(contractAddress, contractABI, signer);
+            document.getElementById('status').innerText = 'Connected to MetaMask';
+            updateArtStatus();
+        };
+
+        document.getElementById('setArtButton').onclick = async () => {
+            try {
+                const tx = await contract.setArt();
+                await tx.wait();
+                artChangeCount++;
+                updateArtStatus();
+            } catch (error) {
+                console.error(error);
+                alert('Error setting as art');
+            }
+        };
+
+        document.getElementById('setNotArtButton').onclick = async () => {
+            try {
+                const tx = await contract.setNotArt();
+                await tx.wait();
+                artChangeCount++;
+                updateArtStatus();
+            } catch (error) {
+                console.error(error);
+                alert('Error setting as not art');
+            }
+        };
+
+        document.getElementById('changeColorButton').onclick = () => {
+            const colorPicker = document.getElementById('colorPicker');
+            colorPicker.style.display = colorPicker.style.display === 'none' ? 'block' : 'none';
+            colorPicker.focus();
+        };
+
+        document.getElementById('colorPicker').oninput = async (event) => {
+            const selectedColor = event.target.value;
+            document.body.style.color = selectedColor;
+            document.getElementById('status').style.color = selectedColor; // Change status text color
+            document.getElementById('dynamicTitleColor').style.color = '#c0392b'; // Keep title color red
+            document.getElementById('colorText').innerText = selectedColor; // Update color text in title
+
+            // Call the contract function to record font change
+            await contract.recordFontChange();
+
+            fontChangeCount++;
+            artistList.push({ address: await signer.getAddress(), date: new Date().toLocaleString() });
+            updateArtistList();
+            document.getElementById('fontChangeCounter').innerText = `Font changed this many times: ${fontChangeCount}`;
+        };
+
+        async function updateArtStatus() {
+            const status = await contract.isArt();
+            document.getElementById('status').innerText = status ? 'This contract is art' : 'This contract is not art';
+            document.getElementById('setArtButton').style.display = status ? 'none' : 'block';
+            document.getElementById('setNotArtButton').style.display = status ? 'block' : 'none';
+            document.getElementById('artChangeCounter').innerText = `Art status changed this many times: ${artChangeCount}`;
+        }
+
+        function updateArtistList() {
+            const listElement = document.getElementById('artistList');
+            listElement.innerHTML = 'Artists who changed the font color:<br>';
+            artistList.forEach(artist => {
+                listElement.innerHTML += `Address: ${artist.address}, Date: ${artist.date}<br>`;
+            });
+        }
+    </script>
+</body>
+</html>
